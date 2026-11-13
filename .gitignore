@@ -1,0 +1,14 @@
+@"
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Personal check-in data
+data/checkins.csv
+
+# Environment variables
+.env
+"@ | Set-Content .gitignore
