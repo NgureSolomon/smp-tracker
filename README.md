@@ -26,7 +26,7 @@ pip install -r requirements.txt
 ```python
 from tracker import analyze_day
 
-result = analyze_day(sleep_hr=7.5, water_glasses=9, bench_kg=88)
+result = analyze_day(sleep_hr=7.5, water_glasses=9,  steps= 10,000, bench_kg=88)
 print(result["coaching"])
 ```
 
