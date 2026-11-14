@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 import csv
 from pathlib import Path
+import pandas as pd
+from datetime import datetime
 
 app= FastAPI(
     title= "SMP Tracker API",
@@ -33,28 +35,112 @@ def home():
 
 @app.post("/DailyCheckIn")
 def create_checkin(checkin: DailyCheckIn):
-     # Check whether the CSV file already exists
+
+    # Get the current date and time
+    recorded_at = datetime.now().isoformat(timespec="seconds")
+
+    # Check whether the CSV file exists
     file_exists = CSV_FILE.exists()
 
-    # Open the CSV file in append mode
-    with open(CSV_FILE, mode="a",#opens the file in append mode
-               newline="") as file:
+    # Add the date column to an existing CSV if necessary
+    if file_exists:
+        df = pd.read_csv(CSV_FILE)
 
-      # Define the column names
+        if "recorded_at" not in df.columns:
+            df["recorded_at"] = ""
+            df.to_csv(CSV_FILE, index=False)
+
+    # Open the CSV file in append mode
+    with open(CSV_FILE, mode="a", newline="") as file:
+
         writer = csv.DictWriter(
             file,
-            fieldnames=["sleep_hours", "water_intake", "steps"]
+            fieldnames=[
+                "sleep_hours",
+                "water_intake",
+                "steps",
+                "recorded_at"
+            ]
         )
 
-        # Write column headings if this is a new file
+        # Write headings for a new file
         if not file_exists:
             writer.writeheader()
 
-        # Save the submitted check-in
-        writer.writerow(checkin.model_dump())
+        # Save the check-in with its timestamp
+        data = checkin.model_dump()
+        data["recorded_at"] = recorded_at
+
+        writer.writerow(data)
+
     return {
         "message": "Daily check-in received",
-        "data": checkin
+        "data": data
     }
 
+@app.get("/daily_checkins")
+def get_checkins():
+    if not CSV_FILE.exists():
+        return{
+            "message": "No check-ins found",
+            "data": []
+        }
+    df=pd.read_csv(CSV_FILE)
+    return{
+             "total_checkins": len(df),
+            "data": df.to_dict()
+    }
+@app.get("/weeklySummary")
+def weekly_summary():
+   
+    if not CSV_FILE.exists():
+        return {
+            "message": "No check-ins available",
+            "data": {}
+        }
 
+    df = pd.read_csv(CSV_FILE)
+
+    # Remove records without timestamps
+    df = df.dropna(subset=[
+    "recorded_at",
+    "sleep_hours",
+    "water_intake",
+    "steps"
+])
+
+    df = df[df["recorded_at"].astype(str).str.strip() != ""]
+    if df.empty:
+        return {
+            "message": "No dated check-ins available",
+            "data": {}
+        }
+
+    # Convert timestamps into datetime values
+    df["recorded_at"] = pd.to_datetime(df["recorded_at"])
+
+    # Get the current week's records (Monday to Sunday)
+    today = pd.Timestamp.today().normalize()
+    week_start = today - pd.Timedelta(days=today.weekday())
+
+    weekly_data = df[
+        (df["recorded_at"] >= week_start) &
+        (df["recorded_at"] < week_start + pd.Timedelta(days=7))
+    ]
+
+    if weekly_data.empty:
+        return {
+            "message": "No check-ins recorded this week",
+            "data": {}
+        }
+
+    return {
+        "message": "Weekly summary generated successfully",
+        "data": {
+            "total_checkins": len(weekly_data),
+            "average_sleep": round(weekly_data["sleep_hours"].mean(), 2),
+            "average_water_intake": round(weekly_data["water_intake"].mean(), 2),
+            "total_steps": int(weekly_data["steps"].sum()),
+            "average_steps": round(weekly_data["steps"].mean(), 2)
+        }
+    }
