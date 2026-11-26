@@ -85,7 +85,7 @@ def get_checkins():
             "message": "No check-ins found",
             "data": []
         }
-    df=pd.read_csv(CSV_FILE)
+    df = pd.read_csv(CSV_FILE, keep_default_na=False)
     return{
              "total_checkins": len(df),
             "data": df.to_dict()
@@ -99,7 +99,7 @@ def weekly_summary():
             "data": {}
         }
 
-    df = pd.read_csv(CSV_FILE)
+    df = pd.read_csv(CSV_FILE, keep_default_na=False)
 
     # Remove records without timestamps
     df = df.dropna(subset=[
@@ -137,10 +137,17 @@ def weekly_summary():
     return {
         "message": "Weekly summary generated successfully",
         "data": {
+            "week_start": str(week_start.date()),
+            "week_end": str((week_start + pd.Timedelta(days=6)).date()),
             "total_checkins": len(weekly_data),
+            "days_with_checkins": weekly_data["recorded_at"].dt.date.nunique(),
             "average_sleep": round(weekly_data["sleep_hours"].mean(), 2),
             "average_water_intake": round(weekly_data["water_intake"].mean(), 2),
             "total_steps": int(weekly_data["steps"].sum()),
-            "average_steps": round(weekly_data["steps"].mean(), 2)
+            "average_steps": round(weekly_data["steps"].mean(), 2),
+            "goal_achievements": int((weekly_data["steps"] >= 10000).sum()),
+            "goal_achievement_percentage": round(
+    (weekly_data["steps"] >= 10000).mean() * 100, 2
+)
         }
     }
